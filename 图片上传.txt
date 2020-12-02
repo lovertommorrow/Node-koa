@@ -1,0 +1,221 @@
+<template>
+  <div class="Upload">
+    <!-- 遮罩层 -->
+    <div class="container" v-show="panel">
+      <div>
+        <img id="image" :src="url"  alt="Picture">
+      </div>
+      <button type="button" class="submit" @click="crop">确定</button>
+      <button type="button" class="cancle" @click="panel=false">取消</button>
+    </div>
+    <div>
+      <div class="show" @click="handleAdd">
+        <div v-if="headerImage" class="picture" :style="'backgroundImage:url('+headerImage+')'"></div>
+        <img v-else :src="imgUrl" alt="">
+      </div>
+      <form enctype="multipart/form-data" class="handle_add" name="fileinfo" @click="handleAdd">
+        <input type="file" id="change" ref="inputFile" :accept="accept" @change="change">
+        <label for="change"></label>
+      </form>
+    </div>
+  </div>
+</template>
+
+<script>
+import Cropper from 'cropperjs'
+import 'cropperjs/dist/cropper.css'
+export default {
+  props: {
+    imgUrl: {
+      default: ''
+    },
+    accept: {
+      type: String,
+      default: 'image/jpeg,image/jpg,image/png,,image/gif'
+    },
+    fileSize: {
+      type: Number,
+      default: 1
+    }
+  },
+  data () {
+    return {
+      headerImage: '',
+      picValue: '',
+      cropper: '',
+      croppable: false,
+      panel: false,
+      url: ''
+    }
+  },
+  mounted () {
+    // 初始化这个裁剪框
+    const self = this
+    const image = document.getElementById('image')
+    this.cropper = new Cropper(image, {
+      aspectRatio: 1,
+      viewMode: 1,
+      background: false,
+      zoomable: false,
+      ready: function () {
+        self.croppable = true
+      }
+    })
+  },
+  methods: {
+    limitUpload (file) {
+      if (file.size > this.fileSize * 1024 * 1024) {
+        this.$message({
+          type: 'error',
+          message: `图片大小不允许超过${this.fileSize}M`
+        })
+        return false
+      }
+    },
+    getObjectURL (file) {
+      // this.limitUpload(file)
+      let url = null
+      if (window.createObjectURL !== undefined) { // basic
+        url = window.createObjectURL(file)
+      } else if (window.URL !== undefined) { // mozilla(firefox)
+        url = window.URL.createObjectURL(file)
+      } else if (window.webkitURL !== undefined) { // webkit or chrome
+        url = window.webkitURL.createObjectURL(file)
+      }
+      return url
+    },
+    change (e) {
+      const files = e.target.files || e.dataTransfer.files
+      if (!files.length) return
+      this.panel = true
+      this.picValue = files[0]
+      this.url = this.getObjectURL(this.picValue)
+      if (this.cropper) {
+        this.cropper.replace(this.url)
+      }
+      this.panel = true
+      event.target.value = ''
+    },
+    crop () {
+      this.panel = false
+      if (!this.croppable) {
+        return
+      }
+      const croppedCanvas = this.cropper.getCroppedCanvas({
+      // 添加参数提升清晰度
+        width: 800,
+        height: 800,
+        imageSmoothingQuality: 'high'
+      })
+      const roundedCanvas = this.getRoundedCanvas(croppedCanvas)
+      // 如果不需要请求接口可直接将url更新到视图
+      // this.headerImage = roundedCanvas.toDataURL()
+      // 接口接收file内容的blob对象
+      roundedCanvas.toBlob((data) => {
+        const file = new File([data], `${new Date().getTime()}.png`, {
+          type: 'image/png'
+        })
+        this.postImg(file)
+      })
+    },
+    getRoundedCanvas (sourceCanvas) {
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+      const width = sourceCanvas.width
+      const height = sourceCanvas.height
+
+      canvas.width = Math.min(300, width)
+      canvas.height = Math.min(300, height)
+
+      context.imageSmoothingEnabled = true
+      // context.drawImage(sourceCanvas, 0, 0, width, height)  
+      // 原图过大导致上传读取慢，截取300*300的尺寸
+      context.drawImage(sourceCanvas, 0, 0, width, height, 0, 0, canvas.width, canvas.height)
+      context.globalCompositeOperation = 'destination-in'
+      context.beginPath()
+      context.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, 2 * Math.PI, true)
+      context.fill()
+      return canvas
+    },
+    // 触发上传
+    handleAdd () {
+      this.$refs.inputFile.dispatchEvent(new MouseEvent('click'))
+    },
+    postImg (file) {
+      const param = new FormData()
+      param.append('file', file)
+      // 图片的上传
+      xxx(param).then((res) => {
+        const { avatar } = res.data.data
+        const info = {
+          ...this.$store.state.userInfo,
+          avatar,
+        }
+        // 更新store的用户信息 
+        this.$store.commit('SET_USERINFO', info)
+      }).catch(e => {
+        this.$message.error('上传失败')
+      })
+    }
+  }
+}
+</script>
+
+<style lang="less" >
+.Upload{
+  position: relative;
+  .submit,.cancle {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    width: 80px;
+    height: 40px;
+    border:none;
+    border-radius: 5px;
+    background:white;
+    cursor: pointer;
+  }
+  .cancle{
+    right: 100px;
+  }
+  .handle_add{
+    display: none;
+  }
+  .show {
+    width: 100px;
+    height: 100px;
+    overflow: hidden;
+    position: relative;
+    border-radius: 50%;
+    cursor: pointer;
+    img{
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+    }
+  }
+  .picture {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-size: cover;
+  }
+  .container {
+    z-index: 99;
+    position: fixed;
+    width: 50%;
+    height: 50%;
+    padding-top: 60px;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%,-50%);
+    background:rgba(0,0,0,1);
+  }
+  #image {
+    max-width: 100%;
+  }
+}
+
+</style>
