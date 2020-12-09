@@ -10,6 +10,7 @@
 */
 
 const Koa = require('koa');
+const path = require('path')
 const Router = require('koa-router');
 const cors = require('@koa/cors');
 const koaBody = require('koa-body');
@@ -17,6 +18,10 @@ const json = require('koa-json');
 const app = new Koa();
 const router = new Router();
 router.prefix('/ac/v1')
+// static 输入网址显示index.html
+const staticServer = require('koa-static');
+
+app.use(staticServer(path.join(__dirname, 'public')))
 
 router.get('/',function (ctx) {
     // console.log(ctx);
@@ -51,6 +56,6 @@ app.use(router.routes())
     .use(router.allowedMethods())   //把前面所有定义的方法添加到app应用上去
 
 app.listen(3001,()=>{
-  console.log('3000 port has been start')
+  console.log('3001 port has been start')
 });
 //可以封装成不同的模块，比如用户登录模块的，列表模块的中间件，不同模块下使用的api的路径可以不同，然后在全局注册应用。
